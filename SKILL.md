@@ -89,7 +89,7 @@ After Steps 1–3, prepare the commit but stop short of pulling the trigger. The
 
 1. **Stage the atomic set.** `git add` every file touched by this task — code + matching doc edits + implementation-plan / archive / instructions changes. One staging step, scoped to the work that just happened. Don't sweep up unrelated WIP.
 2. **Inspect.** `git status` to confirm everything intended is staged and nothing extra. `git diff --cached --stat` for a quick what-changed summary.
-3. **Draft a message.** Match the project's existing tone (run `git log -5 --oneline` if unsure of the style). Default to a single-line past-tense summary of what shipped + optional rationale after a `--` separator. No Conventional Commits prefix unless the repo uses one.
+3. **Draft a tight message — one line by default, two lines max.** Acceptable shapes: a single subject line; `subject -- rationale` on one line; or subject + one body line after a blank. **No multi-paragraph bodies.** Your draft is a starter for the user to approve or expand, not a finished essay. Match the project's existing tone (run `git log -5 --oneline` if unsure); past-tense summary of what shipped. No Conventional Commits prefix unless the repo uses one.
 4. **Present, don't commit.** Show the user the staged set + draft message. They approve as-is, modify, or override. Run `git commit -m "..."` (or HEREDOC for multi-line) only after explicit approval — `commit`, `ship`, `go`, or a revised message all count.
 
 The discipline is about atomicity, not autonomy. The skill handles the scaffolding; the user keeps editorial control.
@@ -120,12 +120,7 @@ Code change: renamed `try_charge_and_plant()` → `commit_planting()` in a syste
 
 ## Anti-Patterns
 
-- **Splitting code change and doc update into separate commits.** Defeats the atomicity rule. Either rebase before push or include both halves before committing.
-- **Restamping `last_updated` on notes you only read.** Pollutes the change-history signal — git diff and frontmatter diverge.
-- **Adding "Updated for TASK-XYZ" comments to feature notes.** Use git history; doc prose stays present-tense.
-- **Loading large archive files whole when offset/limit Read works.** Burns context for no reason; Grep + targeted Read is the established pattern.
 - **Skipping the drift grep "because the change was small".** That's exactly when drift slips through — the small changes are the ones not worth a careful read but still touching documented symbols.
-- **Auto-committing without user approval.** The skill prepares the commit (stage + draft message); the user pulls the trigger. Per-task review judgment + commit-message authorship belong to them.
 
 ## See Also
 
