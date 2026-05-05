@@ -83,6 +83,17 @@ After applying edits, restamp the `last_updated` frontmatter on **every modified
 
 Frontmatter date format follows the project's existing convention (read one neighbouring note to confirm if unsure — typically `'YYYY-MM-DD'`).
 
+## Step 4 — Compose the Commit (Stage + Draft, Wait for Approval)
+
+After Steps 1–3, prepare the commit but stop short of pulling the trigger. The user owns the message + the `git commit` invocation.
+
+1. **Stage the atomic set.** `git add` every file touched by this task — code + matching doc edits + implementation-plan / archive / instructions changes. One staging step, scoped to the work that just happened. Don't sweep up unrelated WIP.
+2. **Inspect.** `git status` to confirm everything intended is staged and nothing extra. `git diff --cached --stat` for a quick what-changed summary.
+3. **Draft a message.** Match the project's existing tone (run `git log -5 --oneline` if unsure of the style). Default to a single-line past-tense summary of what shipped + optional rationale after a `--` separator. No Conventional Commits prefix unless the repo uses one.
+4. **Present, don't commit.** Show the user the staged set + draft message. They approve as-is, modify, or override. Run `git commit -m "..."` (or HEREDOC for multi-line) only after explicit approval — `commit`, `ship`, `go`, or a revised message all count.
+
+The discipline is about atomicity, not autonomy. The skill handles the scaffolding; the user keeps editorial control.
+
 ## Doc Rewrite Discipline
 
 Feature and component notes describe **current state in present tense**. They do NOT accrete task-by-task changelogs. When a task changes a system:
@@ -105,7 +116,7 @@ Code change: renamed `try_charge_and_plant()` → `commit_planting()` in a syste
    - `guides/implementation-plan-archived-m1.md`: an archived deviation bullet from a shipped TASK references the old name in code-span backticks as historical record. **Leave it** — frozen archive, present-tense rule doesn't apply to history.
 3. **Apply edits**: `patch_note` on the two component/feature notes; ignore the archive.
 4. **Restamp**: `update_frontmatter` with `merge=true` on the two edited notes (today's date). Don't touch the archive's `last_updated` (it's frozen).
-5. **Commit**: stage the script change + the two doc edits + (if applicable) the implementation-plan task-table row — one commit.
+5. **Stage + draft commit, wait for approval.** `git add` the script change + the two doc edits + (if applicable) the implementation-plan task-table row. `git status` to verify the atomic set. Draft message: e.g. *"Renamed try_charge_and_plant to commit_planting; updated farm.md + farm-system.md to match."* Present staged set + draft to user; run `git commit` only on their approval (modified or as-is).
 
 ## Anti-Patterns
 
@@ -114,6 +125,7 @@ Code change: renamed `try_charge_and_plant()` → `commit_planting()` in a syste
 - **Adding "Updated for TASK-XYZ" comments to feature notes.** Use git history; doc prose stays present-tense.
 - **Loading large archive files whole when offset/limit Read works.** Burns context for no reason; Grep + targeted Read is the established pattern.
 - **Skipping the drift grep "because the change was small".** That's exactly when drift slips through — the small changes are the ones not worth a careful read but still touching documented symbols.
+- **Auto-committing without user approval.** The skill prepares the commit (stage + draft message); the user pulls the trigger. Per-task review judgment + commit-message authorship belong to them.
 
 ## See Also
 
