@@ -12,7 +12,6 @@ description: >
   Defines the drift-prevention grep, present-tense rewrite discipline,
   last_updated restamp rule, and code+doc atomicity rule. Project-specific paths,
   file sizes, and plan-archive policies live in the project's CLAUDE.md, not here.
-  For Obsidian MCP tool selection details, see the `obsidian` skill.
 ---
 
 # Atomic Docs — Code and Documentation in One Commit
@@ -43,16 +42,16 @@ Before declaring a task done, identify every symbol the change touches and grep 
 
 ## Step 2 — Apply Doc Updates
 
-Pick the cheapest tool for each job:
+Pick the cheapest tool for each job. Writes go through `Edit` (or `Write` for new files / full rewrites); reads go through `Read` (with `offset` / `limit` for large files) or `Grep` for locating sections. The docs vault is plain markdown on the filesystem — direct tool access is the canonical path.
 
-- **Metadata only** (timestamps, status, existence checks): always use Obsidian MCP — `get_frontmatter`, `get_notes_info`, `update_frontmatter` (with `merge=true`), `search_notes`. These skip content entirely.
-- **Small note** (rough rule: under ~10 KB / ~200 lines): `mcp__obsidian__patch_note` for surgical edits; `write_note` with frontmatter inline for full rewrites (one call, not write + update_frontmatter).
-- **Large file**: `Grep` to locate the relevant section, `Read` with `offset`/`limit` for the targeted lines, `Edit` with old/new strings. Don't load whole.
-- **Batch over sequential**: `read_multiple_notes` (cap 10) instead of N `read_note` calls; batch `get_notes_info` for multi-path existence checks.
-- **Don't re-read**: if a note loaded this session hasn't changed externally, reference cached content. `Edit`/`patch_note` error on failure — no need to reload to verify success.
-- **Search, don't browse**: `search_notes` with `searchFrontmatter=true` beats `list_directory` + batch reads for finding relevant docs.
+- **Frontmatter edits** (timestamps, status flags, single-field swaps): `Edit` on the specific YAML line — e.g. `last_updated: '<old>'` → `last_updated: '<new>'`. Each frontmatter field is unique within a note, so the `old_string` is naturally unambiguous. Batch parallel `Edit` calls for multi-file restamps.
+- **Small note edits**: `Edit` with surgical `old_string` / `new_string` pairs. Read first if you don't have the exact text in your context. `Write` only for full rewrites or genuinely new files.
+- **Large file** (multi-hundred-KB; project-specific list lives in CLAUDE.md): `Grep` first to locate the relevant section, `Read` with `offset` / `limit` for the targeted lines, `Edit` for the change. Never read the whole file.
+- **Batch over sequential**: parallel `Read` / `Edit` calls in one tool message when files are independent — cheaper than serial roundtrips.
+- **Don't re-read after edit**: `Edit` errors on `old_string` mismatch; a successful return means the change landed. Re-reading wastes context.
+- **Search, don't browse**: `Grep` with file globs beats listing directories + targeted reads for finding doc references.
 
-For Obsidian MCP proper vault management and gotchas (multi-match defaults, frontmatter matching, confirmation requirements, error recovery), see the `obsidian` skill.
+`Bash` is for `git`, read-only commands, and coordination — not file writes. In sandboxed environments `sed -i` and similar can silently no-op without erroring; use `Edit` for write paths and reserve `Bash` for tasks `Edit` can't do.
 
 Project-specific size thresholds and which exact files require the Grep+Read pattern live in the project's `CLAUDE.md`, not here.
 
@@ -64,9 +63,23 @@ After applying edits, restamp the `last_updated` frontmatter on **every modified
 
 Frontmatter date format follows the project's existing convention (read one neighbouring note to confirm if unsure — typically `'YYYY-MM-DD'`).
 
-## Step 4 — Compose the Commit (Stage + Draft, Wait for Approval)
+## Step 4 — Verify diff coverage with an Explore sub-agent
 
-After Steps 1–3, prepare the commit but stop short of pulling the trigger. The user owns the message + the `git commit` invocation.
+After Steps 1–3 but before staging, dispatch an `Agent (Explore)` sub-agent to walk the staged diff and cross-check against the docs you updated. Catches symbols the Step 1 grep missed because you didn't think to grep for them — registry entries, exported fields hidden in refactors, public-API additions outside your mental model of the change.
+
+Brief shape (adapt to project):
+
+> Walk `git diff --cached` on touched code paths (or `git show HEAD --stat` if already committed). For each public symbol added/removed/renamed/signature-changed (class_name, exported field, public function, signal, autoload, registry row), cross-reference against the docs also touched in this commit. Report uncovered drift in <500 words. Skip archives (`*-archived-*.md`), audits, design scratchpads.
+
+The sub-agent absorbs the full diff into its own context and returns a focused list of gaps — keeping the diff out of yours. **Verify each finding against primary evidence yourself before acting**: read the cited code + doc lines directly, don't relay sub-agent claims as fact. Sub-agents can hallucinate severity or misread context; primary-source verification keeps the discipline honest.
+
+If gaps found → fix inline (back to Step 2) → restamp affected notes (Step 3) → advance to Step 5. If clean, advance directly.
+
+Skip this step only for mechanically trivial changes (single-symbol rename you walked through verbally, comment-only edit). For everything else, the sub-agent dispatch is cheap insurance against blind-spot drift.
+
+## Step 5 — Compose the Commit (Stage + Draft, Wait for Approval)
+
+After Steps 1–4, prepare the commit but stop short of pulling the trigger. The user owns the message + the `git commit` invocation.
 
 1. **Stage the atomic set.** `git add` every file touched by this task — code + matching doc edits + implementation-plan / archive / instructions changes. One staging step, scoped to the work that just happened. Don't sweep up unrelated WIP.
 2. **Inspect.** `git status` to confirm everything intended is staged and nothing extra. `git diff --cached --stat` for a quick what-changed summary.
@@ -97,8 +110,11 @@ Code change: renamed `try_charge_and_plant()` → `commit_planting()` in a syste
    - `guides/implementation-plan-archived-m1.md`: an archived deviation bullet from a shipped TASK references the old name in code-span backticks as historical record. **Leave it** — frozen archive, present-tense rule doesn't apply to history.
 3. **Apply edits**: `patch_note` on the two component/feature notes; ignore the archive.
 4. **Restamp**: `update_frontmatter` with `merge=true` on the two edited notes (today's date). Don't touch the archive's `last_updated` (it's frozen).
-5. **Stage + draft commit, wait for approval.** `git add` the script change + the two doc edits + (if applicable) the implementation-plan task-table row. `git status` to verify the atomic set. Draft message: e.g. *"Renamed try_charge_and_plant to commit_planting; updated farm.md + farm-system.md to match."* Present staged set + draft to user; run `git commit` only on their approval (modified or as-is).
+5. **Verify diff coverage**: dispatch an `Agent (Explore)` to walk the staged code diff and cross-check against the two doc edits. For a single-symbol rename like this, the agent reports "no gaps found" — Step 1's grep already covered the surface. Larger refactors typically surface 1–3 gaps here (registry rows, signature tweaks, exported fields the grep didn't think to look for); fix inline + restamp, then continue.
+6. **Stage + draft commit, wait for approval.** `git add` the script change + the two doc edits + (if applicable) the implementation-plan task-table row. `git status` to verify the atomic set. Draft message: e.g. *"Renamed try_charge_and_plant to commit_planting; updated farm.md + farm-system.md to match."* Present staged set + draft to user; run `git commit` only on their approval (modified or as-is).
 
 ## Anti-Patterns
 
 - **Skipping the drift grep "because the change was small".** That's exactly when drift slips through — the small changes are the ones not worth a careful read but still touching documented symbols.
+- **Trusting that grep coverage was complete.** `Grep` finds doc references to symbols you grep'd for; it doesn't catch symbols you forgot to grep for (a new registry row, an exported field tucked into a refactor, a helper added alongside the main change). The Step 4 sub-agent verification is the backstop. Skipping it leaves blind-spot drift that surfaces in audits weeks later.
+- **Relaying sub-agent findings as fact.** When the Step 4 agent reports a gap, it cites a code line and a doc line. Read both yourself before applying a fix or surfacing the gap to the user — sub-agents misread context, mis-rank severity, or hallucinate line numbers. The primary-source verification is what makes the sub-agent dispatch trustworthy.
