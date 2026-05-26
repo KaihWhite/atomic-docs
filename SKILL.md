@@ -1,13 +1,11 @@
 ---
 name: atomic-docs
 description: >
-  Use when a non-trivial code change is wrapping up — renamed/added/removed
-  symbols, changed signatures, moved files, shipped tasks — even if the user
-  just says "ship it", "wrap up", "ready to commit", or "finish the task"
-  without naming docs explicitly. Also activate on direct doc requests:
-  "update docs", "sync docs", "fix doc drift", "rewrite the feature/component
-  note for X". Skip for trivial formatting (whitespace, comment-only edits),
-  WIP code that doesn't compile, or pure code reads where nothing changed.
+  Use when wrapping up a non-trivial code change (renamed/added/removed
+  symbols, changed signatures, moved files, shipped tasks) — including cues
+  like "ship it" or "ready to commit" — or on direct doc requests ("update
+  docs", "sync docs", "fix doc drift"). Skip trivial formatting,
+  non-compiling WIP, or pure code reads.
 ---
 
 # Atomic Docs — Code and Documentation in One Commit
